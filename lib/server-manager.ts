@@ -13,6 +13,9 @@ import * as cron from 'node-cron';
 import { pipeline } from 'stream/promises';
 import { rconPool } from './rcon';
 import { downloadFile, getLatestBuild } from './papermc';
+import * as stdb from './spacetimedb-data';
+
+const STDB_ENABLED = process.env.SPACETIMEDB_ENABLED !== 'false';
 
 export type ServerStatus = 'stopped' | 'starting' | 'running' | 'stopping';
 
@@ -98,6 +101,12 @@ export class ServerInstance extends EventEmitter {
     }
     this.loadServerProperties();
     this.loadAutomationRules();
+
+    this.on('status', (status: string) => {
+      if (STDB_ENABLED) {
+        stdb.updateServerStatus(this.config.id, status).catch(() => {});
+      }
+    });
   }
 
   private loadServerProperties() {
@@ -311,14 +320,23 @@ export class ServerInstance extends EventEmitter {
   }
 
   private addPlayerActivity(player: string, action: string, details: string) {
-    this.playerActivity.unshift({
+    const record = {
       time: new Date().toISOString(),
       player,
       action,
       details
-    });
+    };
+    this.playerActivity.unshift(record);
     if (this.playerActivity.length > 500) {
       this.playerActivity.pop();
+    }
+    if (STDB_ENABLED) {
+      stdb.insertLog({
+        server_id: this.config.id,
+        level: action === 'kick' ? 'warn' : action === 'leave' ? 'info' : 'info',
+        source: 'player',
+        message: `${player} ${action}: ${details}`,
+      }).catch(() => {});
     }
   }
 
@@ -356,6 +374,19 @@ export class ServerInstance extends EventEmitter {
   public updateConfig(newConfig: Partial<ServerConfig>) {
     this.config = { ...this.config, ...newConfig };
     nodeManager.save();
+    if (STDB_ENABLED) {
+      stdb.upsertServer({
+        id: this.config.id,
+        name: this.config.name,
+        software: this.config.software,
+        version: this.config.version,
+        ram: this.config.ram,
+        cpu_limit: this.config.cpuLimit || 100,
+        status: this.status,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).catch(() => {});
+    }
   }
 
   public addLog(msg: string) {
@@ -364,23 +395,47 @@ export class ServerInstance extends EventEmitter {
       this.logs.shift();
     }
 
+    if (STDB_ENABLED) {
+      const level = msg.includes('ERROR') || msg.includes('error') ? 'error'
+        : msg.includes('WARN') || msg.includes('warn') ? 'warn'
+        : 'info';
+      stdb.insertLog({
+        server_id: this.config.id,
+        level,
+        source: 'server',
+        message: msg,
+      }).catch(() => {});
+    }
+
     const joinMatch = msg.match(/\[.*\]: (\w+) joined the game/);
     if (joinMatch) {
       this.players.add(joinMatch[1]);
       this.addPlayerActivity(joinMatch[1], 'join', 'Joined the game');
       this.executeAutomation('player_join', { player: joinMatch[1] });
+      if (STDB_ENABLED) {
+        stdb.setPlayerOnline(this.config.id, joinMatch[1], '', true).catch(() => {});
+        stdb.startSession(this.config.id, joinMatch[1], '').catch(() => {});
+      }
     }
     const leaveMatch = msg.match(/\[.*\]: (\w+) lost connection: (.*)/);
     if (leaveMatch) {
       this.players.delete(leaveMatch[1]);
       this.addPlayerActivity(leaveMatch[1], 'leave', `Lost connection: ${leaveMatch[2]}`);
       this.executeAutomation('player_leave', { player: leaveMatch[1] });
+      if (STDB_ENABLED) {
+        stdb.setPlayerOnline(this.config.id, leaveMatch[1], '', false).catch(() => {});
+        stdb.endSession(this.config.id, leaveMatch[1]).catch(() => {});
+      }
     }
     const kickMatch = msg.match(/\[.*\]: (\w+) was kicked: (.*)/);
     if (kickMatch) {
       this.players.delete(kickMatch[1]);
       this.addPlayerActivity(kickMatch[1], 'kick', `Kicked: ${kickMatch[2]}`);
       this.executeAutomation('player_kick', { player: kickMatch[1] });
+      if (STDB_ENABLED) {
+        stdb.setPlayerOnline(this.config.id, kickMatch[1], '', false).catch(() => {});
+        stdb.endSession(this.config.id, kickMatch[1]).catch(() => {});
+      }
     }
     const chatMatch = msg.match(/\[.*\]: <(\w+)> (.*)/);
     if (chatMatch) {
@@ -406,25 +461,43 @@ export class ServerInstance extends EventEmitter {
     this.emit('log', msg);
   }
 
-  public addTunnelLog(msg: string) {
-    this.tunnelLogs.push(msg);
-    if (this.tunnelLogs.length > 100) {
-      this.tunnelLogs.shift();
-    }
+	public addTunnelLog(msg: string) {
+		this.tunnelLogs.push(msg);
+		if (this.tunnelLogs.length > 100) {
+			this.tunnelLogs.shift();
+		}
 
-    const ipMatch = msg.match(/(?:start proxy success|proxy success).*?(\S+\.\S+:\d+)/i) 
-      || msg.match(/minecraft\s+->\s+(\S+:\d+)/i)
-      || msg.match(/(?:login|tunnel).*?->\s*(.+)/i);
-    if (ipMatch && !this.tunnelAddress) {
-      const match = ipMatch[1].trim();
-      if (match.includes('.')) {
-        this.tunnelAddress = match;
-        this.emit('tunnelAddress', this.tunnelAddress);
-      }
-    }
+		let extracted: string | null = null;
 
-    this.emit('tunnelLog', msg);
-  }
+		const patterns = [
+			/proxies\s+\[([^\]]+)\]\s+tcp\s+listen\s+([^\s]+)/i,
+			/\[([^\]]+)\]\s+tcp\s+listen\s+([^\s]+)/i,
+			/proxy\s+[\x27"]?([^\x27"\s]+)[\x27"]?\s+started.*?([^\s]+\.\S+:\d+)/i,
+			/start\s+proxy\s+success.*?(\S+\.\S+:\d+)/i,
+			/proxy\s+success.*?(\S+\.\S+:\d+)/i,
+			/minecraft\s+->\s+(\S+:\d+)/i,
+			/login\s+to\s+server\s+success.*?(\S+\.\S+)/i,
+			/connected\s+to\s+server\s+(\S+)/i,
+		];
+
+		for (const pattern of patterns) {
+			const match = msg.match(pattern);
+			if (match) {
+				extracted = match[match.length - 1].trim();
+				if (extracted && !extracted.includes(':') && this.tunnelConfig) {
+					extracted = `${extracted}:${this.tunnelConfig.tunnelPort}`;
+				}
+				break;
+			}
+		}
+
+		if (extracted && extracted.includes('.') && !this.tunnelAddress) {
+			this.tunnelAddress = extracted;
+			this.emit('tunnelAddress', this.tunnelAddress);
+		}
+
+		this.emit('tunnelLog', msg);
+	}
 
   private async queryTps() {
     if (this.status !== 'running') return;
@@ -462,6 +535,15 @@ export class ServerInstance extends EventEmitter {
           this.metrics.push(metric);
           if (this.metrics.length > 60) this.metrics.shift();
           this.emit('metrics', metric);
+          if (STDB_ENABLED) {
+            stdb.insertMetric({
+              server_id: this.config.id,
+              cpu: metric.cpu,
+              ram: metric.ram,
+              players: metric.players,
+              tps: metric.tps,
+            }).catch(() => {});
+          }
 
           if (metric.cpu > 90) this.executeAutomation('cpu_high', { cpu: metric.cpu });
 
@@ -731,41 +813,42 @@ export class ServerInstance extends EventEmitter {
     await doDownload(url);
   }
 
-  public async startTunnel(config: TunnelConfig) {
-    if (this.tunnelStatus !== 'stopped') return;
+	public async startTunnel(config: TunnelConfig) {
+		if (this.tunnelStatus !== 'stopped') return;
 
-    this.tunnelStatus = 'running';
-    this.tunnelAddress = null;
-    this.tunnelConfig = config;
-    this.emit('tunnelStatus', this.tunnelStatus);
+		this.tunnelStatus = 'running';
+		this.tunnelAddress = null;
+		this.tunnelConfig = config;
+		this.emit('tunnelStatus', this.tunnelStatus);
 
-    const serverPort = this.getServerPort();
-    const frpcPath = this.getFrpcPath();
-    const configPath = this.writeFrpcConfig(config, serverPort);
+		const serverPort = this.getServerPort();
+		const frpcPath = this.getFrpcPath();
+		const configPath = this.writeFrpcConfig(config, serverPort);
 
-    this.addTunnelLog('[FRP] Starting frp tunnel...');
-    this.addTunnelLog(`[FRP] Server: ${config.serverAddr}:${config.serverPort}`);
-    this.addTunnelLog(`[FRP] Minecraft port: ${serverPort}`);
+		this.addTunnelLog('[FRP] Starting frp tunnel...');
+		this.addTunnelLog(`[FRP] Server: ${config.serverAddr}:${config.serverPort}`);
+		this.addTunnelLog(`[FRP] Minecraft port: ${serverPort} -> ${config.tunnelPort}`);
+		this.addTunnelLog(`[FRP] Config: ${configPath}`);
 
-    if (!fs.existsSync(frpcPath)) {
-      this.addTunnelLog('[FRP] frpc binary not found. Downloading...');
-      try {
-        await this.downloadFrpc();
-        this.addTunnelLog('[FRP] frpc downloaded successfully.');
-      } catch (err: any) {
-        this.addTunnelLog(`[FRP] Download failed: ${err.message}`);
-        this.addTunnelLog('[FRP] Please download frpc manually from https://github.com/fatedier/frp/releases');
-        this.tunnelStatus = 'stopped';
-        this.emit('tunnelStatus', this.tunnelStatus);
-        return;
-      }
-    }
+		if (!fs.existsSync(frpcPath)) {
+			this.addTunnelLog('[FRP] frpc binary not found. Downloading...');
+			try {
+				await this.downloadFrpc();
+				this.addTunnelLog('[FRP] frpc downloaded successfully.');
+			} catch (err: any) {
+				this.addTunnelLog(`[FRP] Download failed: ${err.message}`);
+				this.addTunnelLog('[FRP] Please download frpc manually from https://github.com/fatedier/frp/releases');
+				this.tunnelStatus = 'stopped';
+				this.emit('tunnelStatus', this.tunnelStatus);
+				return;
+			}
+		}
 
-    try {
-      this.tunnelProcess = spawn(frpcPath, ['-c', configPath], {
-        cwd: this.serverDir,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+		try {
+			this.tunnelProcess = spawn(frpcPath, ['-c', configPath], {
+				cwd: this.serverDir,
+				stdio: ['pipe', 'pipe', 'pipe'],
+			});
 
       this.tunnelProcess.stdout?.on('data', (data) => {
         const str = data.toString().trim();
@@ -802,29 +885,28 @@ export class ServerInstance extends EventEmitter {
     }
   }
 
-  private writeFrpcConfig(config: TunnelConfig, serverPort: number): string {
-    const frpcDir = path.join(this.serverDir, 'frp');
-    if (!fs.existsSync(frpcDir)) {
-      fs.mkdirSync(frpcDir, { recursive: true });
-    }
+	private writeFrpcConfig(config: TunnelConfig, serverPort: number): string {
+		const frpcDir = path.join(this.serverDir, 'frp');
+		if (!fs.existsSync(frpcDir)) {
+			fs.mkdirSync(frpcDir, { recursive: true });
+		}
 
-    const serverSection = `
-[common]
-server_addr = ${config.serverAddr}
-server_port = ${config.serverPort}
-token = ${config.authToken}
+		const tomlConfig = `serverAddr = "${config.serverAddr}"
+serverPort = ${config.serverPort}
+auth.token = "${config.authToken}"
 
-[minecraft-tcp]
-type = tcp
-local_ip = 127.0.0.1
-local_port = ${serverPort}
-remote_port = ${config.tunnelPort}
-`.trim();
+[[proxies]]
+name = "minecraft-tcp"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = ${serverPort}
+remotePort = ${config.tunnelPort}
+`;
 
-    const configPath = path.join(frpcDir, 'frpc.ini');
-    fs.writeFileSync(configPath, serverSection);
-    return configPath;
-  }
+		const configPath = path.join(frpcDir, 'frpc.toml');
+		fs.writeFileSync(configPath, tomlConfig);
+		return configPath;
+	}
 
   private getFrpcPath(): string {
     const ext = os.platform() === 'win32' ? '.exe' : '';
@@ -1024,6 +1106,27 @@ export class NodeManager {
         }
       } catch (e) {}
     }
+    if (STDB_ENABLED) {
+      this.syncFromSpacetimeDB().catch(() => {});
+    }
+  }
+
+  private async syncFromSpacetimeDB() {
+    try {
+      const dbServers = await stdb.getAllServers();
+      for (const rec of dbServers) {
+        if (!this.servers.has(rec.id)) {
+          this.servers.set(rec.id, new ServerInstance({
+            id: rec.id,
+            name: rec.name,
+            software: rec.software,
+            version: rec.version,
+            ram: rec.ram,
+            cpuLimit: rec.cpu_limit,
+          }));
+        }
+      }
+    } catch {}
   }
 
   public save() {
@@ -1037,6 +1140,19 @@ export class NodeManager {
     const instance = new ServerInstance(config);
     this.servers.set(id, instance);
     this.save();
+    if (STDB_ENABLED) {
+      stdb.upsertServer({
+        id,
+        name,
+        software,
+        version,
+        ram: '2G',
+        cpu_limit: 100,
+        status: 'stopped',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).catch(() => {});
+    }
     return instance;
   }
 
@@ -1051,6 +1167,9 @@ export class NodeManager {
       fs.rmSync(path.join(process.cwd(), 'backups', id), { recursive: true, force: true });
       this.servers.delete(id);
       this.save();
+      if (STDB_ENABLED) {
+        stdb.deleteServer(id).catch(() => {});
+      }
       return true;
     } catch (e) {
       return false;

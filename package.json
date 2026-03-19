@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "next dev",
+		"dev": "bun run scripts/dev.ts",
 		"build": "next build",
 		"start": "bun run scripts/start-server.ts",
 		"start:dev": "next start",

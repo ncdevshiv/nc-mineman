@@ -81,6 +81,70 @@ async function runBuild(): Promise<boolean> {
 	}
 }
 
+async function startSpacetimeDB(): Promise<void> {
+	const spacetimedbBin = join(cwd, 'Bin', 'SpacetimeDB', 'spacetimedb-standalone.exe');
+	if (!existsSync(spacetimedbBin)) {
+		log('warn', 'SpacetimeDB binary not found, skipping');
+		return;
+	}
+
+	if (process.env.SPACETIMEDB_ENABLED === 'false') {
+		log('info', 'SpacetimeDB disabled via env');
+		return;
+	}
+
+	const stdbPort = parseInt(process.env.SPACETIMEDB_PORT || '3001');
+	log('info', 'Starting SpacetimeDB standalone server', { port: stdbPort });
+
+	try {
+		const dataDir = join(cwd, 'data', 'spacetimedb', 'data');
+		mkdirSync(dataDir, { recursive: true });
+
+		const proc = Bun.spawn([spacetimedbBin, 'start'], {
+			cwd: join(cwd, 'Bin', 'SpacetimeDB'),
+			env: { ...process.env, SPACETIMEDB_DATA_DIR: dataDir },
+			stdout: 'pipe',
+			stderr: 'pipe',
+		});
+
+		const reader = proc.stdout.getReader();
+		const decoder = new TextDecoder();
+
+		const readLoop = async () => {
+			try {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					const text = decoder.decode(value);
+					for (const line of text.split('\n')) {
+						if (line.trim()) log('info', `[SpacetimeDB] ${line.trim()}`);
+					}
+				}
+			} catch {}
+		};
+		readLoop();
+
+		const stderrReader = proc.stderr.getReader();
+		const stderrLoop = async () => {
+			try {
+				while (true) {
+					const { done, value } = await stderrReader.read();
+					if (done) break;
+					const text = decoder.decode(value);
+					for (const line of text.split('\n')) {
+						if (line.trim()) log('warn', `[SpacetimeDB] ${line.trim()}`);
+					}
+				}
+			} catch {}
+		};
+		stderrLoop();
+
+		log('info', 'SpacetimeDB started in background');
+	} catch (err: any) {
+		log('error', 'Failed to start SpacetimeDB', { error: err.message });
+	}
+}
+
 async function startServer(): Promise<void> {
 	const serverPath = join(cwd, '.next', 'standalone', 'server.js');
 	const staticSource = join(cwd, '.next', 'static');
@@ -119,34 +183,38 @@ async function main() {
 	console.log('==============================================');
 	console.log('');
 
-	console.log('[1/8] Killing existing Java processes (Minecraft servers)...');
+	console.log('[1/9] Killing existing Java processes (Minecraft servers)...');
 	await killProcessByName('java');
 	console.log('Done.');
 
-	console.log('[2/8] Killing existing Node.js/Bun processes...');
+	console.log('[2/9] Killing existing Node.js/Bun processes...');
 	await killProcessByName('node');
 	await killProcessByName('bun');
 	console.log('Done.');
 
-	console.log('[3/8] Killing existing FRP tunnel processes...');
+	console.log('[3/9] Killing existing FRP tunnel processes...');
 	await killProcessByName('frpc');
 	await killProcessByName('playit');
 	console.log('Done.');
 
-	console.log('[4/8] Killing processes on port 3000 (Next.js)...');
+	console.log('[4/9] Killing existing SpacetimeDB processes...');
+	await killProcessByName('spacetimedb-standalone');
+	console.log('Done.');
+
+	console.log('[5/9] Killing processes on port 3000 (Next.js)...');
 	await killProcessOnPort(3000);
 	console.log('Done.');
 
-	console.log('[5/8] Killing processes on port 25565 (Minecraft default)...');
+	console.log('[6/9] Killing processes on port 25565 (Minecraft default)...');
 	await killProcessOnPort(25565);
 	console.log('Done.');
 
-	console.log('[6/8] Clearing Next.js cache and build artifacts...');
+	console.log('[7/9] Clearing Next.js cache and build artifacts...');
 	await cleanBuildArtifacts();
 	console.log('Done.');
 
 	console.log('');
-	console.log('[7/8] Running fresh build...');
+	console.log('[8/9] Running fresh build...');
 	const buildSuccess = await runBuild();
 	if (!buildSuccess) {
 		console.log('');
@@ -157,10 +225,16 @@ async function main() {
 	console.log('Build successful.');
 
 	console.log('');
-	console.log('[8/8] Starting MineManager server...');
+	console.log('[9/10] Starting SpacetimeDB...');
+	await startSpacetimeDB();
+	console.log('Done.');
+
+	console.log('');
+	console.log('[10/10] Starting MineManager server...');
 	console.log('');
 	console.log('==============================================');
 	console.log('Server ready at: http://localhost:3000');
+	console.log('SpacetimeDB at: http://127.0.0.1:3001');
 	console.log('Press Ctrl+C to stop the server');
 	console.log('==============================================');
 	console.log('');

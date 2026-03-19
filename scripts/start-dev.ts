@@ -1,6 +1,9 @@
 import { $ } from 'bun';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import { platform } from 'os';
+
+const cwd = process.cwd();
 
 async function killProcessOnPort(portNum: number): Promise<void> {
 	if (platform() === 'win32') {
@@ -28,6 +31,14 @@ async function killProcessOnPort(portNum: number): Promise<void> {
 	}
 }
 
+async function killProcessByName(name: string): Promise<void> {
+	if (platform() === 'win32') {
+		try { await $`taskkill /F /IM ${name}`.quiet(); } catch {}
+	} else {
+		try { await $`pkill -9 ${name}`.quiet(); } catch {}
+	}
+}
+
 async function installDependencies(): Promise<boolean> {
 	try {
 		if (existsSync('bun.lockb')) {
@@ -42,6 +53,34 @@ async function installDependencies(): Promise<boolean> {
 	}
 }
 
+async function startSpacetimeDB(): Promise<void> {
+	const spacetimedbBin = join(cwd, 'Bin', 'SpacetimeDB', 'spacetimedb-standalone.exe');
+	if (!existsSync(spacetimedbBin)) {
+		console.log('[SpacetimeDB] Binary not found, skipping');
+		return;
+	}
+	if (process.env.SPACETIMEDB_ENABLED === 'false') {
+		console.log('[SpacetimeDB] Disabled via env');
+		return;
+	}
+
+	const dataDir = join(cwd, 'data', 'spacetimedb', 'data');
+	mkdirSync(dataDir, { recursive: true });
+
+	console.log('[SpacetimeDB] Starting standalone server on port 3001...');
+	try {
+		Bun.spawn([spacetimedbBin, 'start'], {
+			cwd: join(cwd, 'Bin', 'SpacetimeDB'),
+			env: { ...process.env, SPACETIMEDB_DATA_DIR: dataDir },
+			stdout: 'pipe',
+			stderr: 'pipe',
+		});
+		console.log('[SpacetimeDB] Started in background');
+	} catch (err: any) {
+		console.error('[SpacetimeDB] Failed to start:', err.message);
+	}
+}
+
 async function main() {
 	console.log('');
 	console.log('==============================================');
@@ -49,11 +88,15 @@ async function main() {
 	console.log('==============================================');
 	console.log('');
 
-	console.log('[1/3] Killing existing processes on port 3000 (dev server)...');
+	console.log('[1/4] Killing existing processes on port 3000 (dev server)...');
 	await killProcessOnPort(3000);
 	console.log('Done.');
 
-	console.log('[2/3] Installing dependencies...');
+	console.log('[2/4] Killing existing SpacetimeDB processes...');
+	await killProcessByName('spacetimedb-standalone');
+	console.log('Done.');
+
+	console.log('[3/4] Installing dependencies...');
 	const installSuccess = await installDependencies();
 	if (!installSuccess) {
 		console.log('');
@@ -63,8 +106,13 @@ async function main() {
 	}
 	console.log('Dependencies ready.');
 
-	console.log('[3/3] Starting Next.js dev server...');
+	console.log('[4/5] Starting SpacetimeDB...');
+	await startSpacetimeDB();
+
+	console.log('');
+	console.log('[5/5] Starting Next.js dev server...');
 	console.log('URL: http://localhost:3000');
+	console.log('SpacetimeDB: http://127.0.0.1:3001');
 	console.log('');
 
 	await $`bun run dev`;
