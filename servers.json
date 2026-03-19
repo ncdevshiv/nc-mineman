@@ -1,0 +1,18 @@
+[
+  {
+    "id": "bdfad29f-8490-404c-a180-0a6f7fd06b70",
+    "name": "HideoutSMP",
+    "software": "velocity",
+    "version": "3.4.0-SNAPSHOT",
+    "ram": "2G",
+    "cpuLimit": 100
+  },
+  {
+    "id": "65e982a2-cdb4-4a09-8d54-16abce96d7de",
+    "name": "HideoutSMP-lobby",
+    "software": "folia",
+    "version": "1.21.11",
+    "ram": "2G",
+    "cpuLimit": 100
+  }
+]

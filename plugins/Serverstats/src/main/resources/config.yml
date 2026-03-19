@@ -1,0 +1,6 @@
+http:
+  port: 8088
+broadcast:
+  interval_ticks: 200
+activity:
+  per_player_limit: 200

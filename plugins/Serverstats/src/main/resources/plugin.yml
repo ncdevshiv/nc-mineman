@@ -1,0 +1,6 @@
+name: Serverstats
+main: com.serverstats.ServerStatsPlugin
+version: 1.0.0
+author: serverstats
+api-version: "1.20"
+commands: {}

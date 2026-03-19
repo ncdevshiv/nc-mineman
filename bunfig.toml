@@ -1,0 +1,15 @@
+[install]
+exact = true
+production = false
+
+[install.cache]
+disable = false
+
+[run]
+bun = true
+
+[build]
+target = "bun"
+
+[test]
+preload = ["./setup-tests.ts"]
