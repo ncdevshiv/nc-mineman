@@ -1,0 +1,10 @@
+serverAddr = "frp1.publicvm.com"
+serverPort = 7000
+auth.token = "pythonfetion"
+
+[[proxies]]
+name = "minecraft"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 25565
+remotePort = 25565

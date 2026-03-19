@@ -1,0 +1,7 @@
+{
+  "serverAddr": "frp1.publicvm.com",
+  "serverPort": 7000,
+  "tunnelPort": 25565,
+  "authToken": "pythonfetion",
+  "mode": "remote"
+}
