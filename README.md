@@ -1,178 +1,188 @@
 <div align="center">
   <h1>MineServer2</h1>
-  <p>A complete Minecraft server manager with Next.js dashboard</p>
+  <p>Complete Minecraft server management with embedded SpacetimeDB</p>
 </div>
 
-MineServer2 is a comprehensive Minecraft server management solution built with Next.js, providing a modern web interface to manage multiple Minecraft servers, monitor performance, and handle player management.
+MineServer2 is a self-contained Minecraft server management dashboard. Create, monitor, and manage multiple Minecraft servers from a single web interface with real-time metrics, player tracking, and persistent data via an embedded SpacetimeDB database.
 
 ## Features
 
-- 🎮 **Multi-Server Management**: Manage multiple Minecraft servers from one dashboard
-- 📊 **Real-time Monitoring**: Track server performance, player count, and resource usage
-- 👥 **Player Management**: View online players, manage permissions, and handle player data
-- 📁 **File Management**: Upload, download, and edit server files through the web interface
-- 🔄 **Automated Backups**: Schedule and manage server backups
-- 🛡️ **Security**: Secure authentication and authorization system
-- 📱 **Responsive Design**: Works seamlessly on desktop and mobile devices
+- **Multi-Server Management** — Create and manage Paper, Folia, and Velocity servers from one dashboard
+- **Real-time Monitoring** — Live CPU, RAM, TPS, and player count charts
+- **Player Management** — Track OP status, bans, whitelists, waitlists, IP history, playtime, and session data
+- **Embedded Database** — SpacetimeDB v2.0.5 bundled as a self-contained binary; no external database needed
+- **Auto-Start** — Database and server processes start automatically on launch
+- **Console** — Execute RCON commands directly from the web UI
+- **File Manager** — Upload, download, and edit server files with Monaco editor
+- **Backups** — Automated scheduled backups with zip compression
+- **Automation** — Rule-based triggers (player join/leave/kick) with cooldowns
+- **Network Tunneling** — FRP tunnel support for exposing local servers
+- **Fully Portable** — All binaries (SpacetimeDB, FRP) bundled in `Bin/`; clone and run
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15, React 19, TypeScript
-- **Styling**: Tailwind CSS, Lucide React icons
-- **Backend**: Next.js API routes, Node.js
-- **Authentication**: NextAuth.js
-- **Package Manager**: Bun
-- **Database**: JSON-based server configuration
-
-## Prerequisites
-
-- Node.js 18+ or Bun
-- Windows, macOS, or Linux
-- Java runtime for Minecraft servers
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4 |
+| Charts | Recharts |
+| Icons | Lucide React |
+| State | Zustand (persisted to localStorage) |
+| Data Fetching | SWR + Server-Sent Events |
+| Database | SpacetimeDB v2.0.5 (embedded standalone) |
+| Auth | NextAuth.js |
+| Runtime | Bun |
+| Tunneling | FRP (bundled) |
 
 ## Quick Start
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/ncdevshiv/nc-mineman.git
-   cd MineServer2
-   ```
+```bash
+# Clone
+git clone https://github.com/ncdevshiv/nc-mineman.git
+cd MineServer2
 
-2. **Install dependencies**
-   ```bash
-   bun install
-   # or
-   npm install
-   ```
+# Install
+bun install
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env.local
-   ```
-   Edit `.env.local` with your configuration.
+# Configure
+cp .env.example .env.local
 
-4. **Start the development server**
-   ```bash
-   bun run dev
-   # or
-   npm run dev
-   ```
-
-5. **Open your browser**
-   Navigate to `http://localhost:3000`
-
-## Available Scripts
-
-- `bun run dev` - Start development server
-- `bun run build` - Build for production
-- `bun run start` - Start production server
-- `bun run start:dev` - Start production server in dev mode
-- `bun run lint` - Run ESLint
-- `bun run typecheck` - Run TypeScript type checking
-- `bun run clean` - Clean Next.js cache
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env.local` file in the root directory:
-
-```env
-# Application URL
-APP_URL="http://localhost:3000"
-
-# NextAuth.js configuration
-NEXTAUTH_SECRET="your-secret-key"
-NEXTAUTH_URL="http://localhost:3000"
-
-# Optional: AI features (if using Gemini integration)
-GEMINI_API_KEY="your-gemini-api-key"
+# Run (auto-starts SpacetimeDB + Next.js)
+bun run dev
 ```
 
-### Server Configuration
-
-Server configurations are stored in `servers.json`. Each server includes:
-
-- Server ID and name
-- Java path and memory allocation
-- Server JAR file path
-- Network settings (port, IP)
-- Backup configuration
+Open `http://localhost:3000`. SpacetimeDB starts automatically on port 3001.
 
 ## Project Structure
 
 ```
 MineServer2/
-├── app/                 # Next.js app directory
-│   ├── api/            # API routes
-│   ├── dashboard/      # Dashboard pages
-│   └── servers/        # Server management pages
-├── components/         # React components
-├── lib/               # Utility functions
-├── scripts/           # Server management scripts
-├── servers/           # Minecraft server instances
-└── public/            # Static assets
+├── Bin/
+│   ├── SpacetimeDB/          # Embedded database binaries
+│   │   ├── spacetimedb-cli.exe
+│   │   └── spacetimedb-standalone.exe
+│   └── FRP/                  # Tunnel binaries
+│       ├── frpc.exe
+│       └── frps.exe
+├── app/
+│   ├── api/
+│   │   ├── servers/          # Server CRUD + actions
+│   │   ├── spacetimedb/      # Database management API
+│   │   ├── network/          # FRP tunnel API
+│   │   └── auth/             # NextAuth routes
+│   └── page.tsx              # SPA entry point
+├── components/
+│   ├── sidebar.tsx           # Navigation sidebar
+│   ├── server-list.tsx       # Server grid
+│   ├── dashboard.tsx         # Server dashboard (metrics, controls)
+│   ├── console.tsx           # RCON console
+│   ├── players.tsx           # Player management (RCON)
+│   ├── files.tsx             # File manager
+│   ├── automation.tsx        # Automation rules
+│   ├── backups.tsx           # Backup manager
+│   ├── settings.tsx          # Server settings
+│   ├── network-wizard.tsx    # FRP tunnel setup
+│   ├── spacetime-dashboard.tsx  # SpacetimeDB overview
+│   ├── spacetime-servers.tsx    # DB server records CRUD
+│   ├── spacetime-players.tsx    # DB player management
+│   ├── spacetime-logs.tsx       # DB log viewer
+│   └── spacetime-metrics.tsx    # DB metrics charts
+├── lib/
+│   ├── server-manager.ts     # Minecraft server process manager
+│   ├── spacetimedb.ts        # SpacetimeDB process manager
+│   ├── spacetimedb-data.ts   # SpacetimeDB schema + CRUD layer
+│   ├── rcon.ts               # RCON connection pool
+│   ├── store.ts              # Zustand state store
+│   └── papermc.ts            # PaperMC API client
+├── scripts/
+│   ├── dev.ts                # Dev start (auto-starts SpacetimeDB)
+│   ├── start.ts              # Full fresh start
+│   ├── start-dev.ts          # Dev fresh start
+│   └── start-server.ts       # Production start
+├── plugins/                  # Server plugins (Serverstats JARs)
+├── tunnel/                   # FRP tunnel configs
+└── data/spacetimedb/         # SpacetimeDB data directory (auto-created)
 ```
 
-## Managing Servers
+## Database Schema
 
-### Adding a New Server
+SpacetimeDB runs as an embedded standalone server on port 3001. Eight tables:
 
-1. Create a new directory in `servers/`
-2. Download and place your server JAR file
-3. Configure server properties
-4. Add server configuration to `servers.json`
+| Table | Purpose |
+|-------|---------|
+| `servers` | Server configs (name, software, version, RAM, status) |
+| `players` | Player records (OP, ban, whitelist, waitlist, IP, playtime, notes) |
+| `player_sessions` | Join/leave timestamps with duration |
+| `player_ip_history` | IP address tracking per player |
+| `server_logs` | Persistent log storage with level filtering |
+| `metrics` | CPU, RAM, TPS, player count time-series |
+| `automation_rules` | Trigger/action rules with cooldowns |
+| `scheduled_tasks` | Cron-based scheduled actions |
 
-### Server Controls
+## Dashboard Tabs
 
-- **Start/Stop**: Control server instances from the dashboard
-- **Restart**: Quick restart without losing players
-- **Backup**: Create manual or scheduled backups
-- **Logs**: View real-time server logs
-- **Console**: Execute server commands
+### Server View (per-server sidebar tabs)
+- **Dashboard** — Status, start/stop, live metrics, quick command
+- **Console** — Real-time server log stream + command input
+- **Players** — OP/whitelist/ban management via RCON
+- **File Manager** — Browse, edit, upload, download files
+- **Software** — Download/update server JARs from PaperMC
+- **Plugins** — Manage server plugins
+- **Backups** — Create, download, restore backups
+- **Automation** — Rule-based automation (triggers + actions)
+- **Settings** — Server name, RAM, CPU limit, properties
 
-## Deployment
+### Global View (sidebar top)
+- **Servers** — Server list grid with create/delete
+- **Network** — FRP tunnel configuration
+- **Database** — SpacetimeDB management dashboard
+  - Overview — Status, version, schema, server list
+  - Servers — CRUD table with add/edit/delete/clear
+  - Players — Full player management with filters, search, IP history, notes, sessions
+  - Logs — Log viewer with level filter, search, pagination
+  - Metrics — CPU/RAM/TPS/Players charts with configurable data points
 
-### Production Deployment
+## Scripts
 
-1. **Build the application**
-   ```bash
-   bun run build
-   ```
+| Command | Description |
+|---------|-------------|
+| `bun run dev` | Dev server (auto-starts SpacetimeDB + Next.js) |
+| `bun run build` | Production build |
+| `bun run start` | Production server (auto-starts SpacetimeDB) |
+| `bun run start:fresh` | Kill all processes, clean build, start fresh |
+| `bun run start:dev:fresh` | Dev fresh start with dependency install |
+| `bun run lint` | ESLint |
+| `bun run typecheck` | TypeScript type check |
+| `bun run clean` | Clean Next.js cache |
 
-2. **Start production server**
-   ```bash
-   bun run start
-   ```
+## Environment Variables
 
-### Docker Deployment
+```env
+APP_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key"
+NEXTAUTH_URL="http://localhost:3000"
+GEMINI_API_KEY="your-gemini-api-key"      # Optional: AI features
 
-A Docker setup can be configured for containerized deployment.
+# SpacetimeDB
+SPACETIMEDB_ENABLED="true"                 # Set "false" to disable
+SPACETIMEDB_PORT="3001"                    # Must differ from Next.js port
+SPACETIMEDB_HOST="127.0.0.1"
+```
 
-## Contributing
+## Architecture
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+```
+Browser ──→ Next.js (port 3000)
+               │
+               ├── API Routes ──→ Minecraft servers (RCON + process spawn)
+               │
+               └── API Routes ──→ SpacetimeDB (port 3001, HTTP API)
+                                        │
+                                        └── Embedded standalone binary
+                                            (auto-started, auto-initialized)
+```
 
-## Support
-
-- 📖 Documentation: Check the inline documentation
-- 🐛 Issues: Report bugs via GitHub Issues
-- 💬 Discussions: Join our GitHub Discussions
+SpacetimeDB auto-starts on first API call via `ensureRunning()`, which polls `/v1/ping` until HTTP is ready, then initializes the schema. The `bun run dev` script also pre-starts it as a background process.
 
 ## License
 
-This project is licensed under the MIT License.
-
-## Acknowledgments
-
-- Minecraft server management community
-- Next.js and React ecosystem
-- All contributors and users
-
----
-
-**MineServer2** - Making Minecraft server management simple and efficient.
+MIT
