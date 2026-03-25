@@ -1,0 +1,75 @@
+node_modules/
+.next/
+coverage/
+.DS_Store
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment files (contains secrets!)
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+!.env.example
+
+# Application data directories
+data/
+servers/
+backups/
+logs/
+
+# Caddy data
+caddy_data/
+caddy_config/
+
+# Docker volumes
+docker-volumes/
+
+# SpacetimeDB data
+spacetimedb-data/
+
+# Generated files
+*.jar
+!plugins/**/*.jar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.txt
+!README.txt
+build_logs/
+temp_stdb/
+.kilocodemodes
+
+# Binaries (download separately)
+Bin/
+Bin/cloudflared.exe
+Bin/frp/
+Bin/SpacetimeDB/*.exe
+portable/
+*.exe
+
+# Plugin build artifacts
+plugins/Serverstats/build/
+plugins/Serverstats/.settings/
+plugins/Serverstats/.project
+plugins/.kilocode/
+
+# Gradle
+plugins-builder/Serverstats/.gradle/
+
+# Reference codebase (external repo reference)
+reference-codebase/

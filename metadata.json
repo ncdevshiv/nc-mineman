@@ -1,0 +1,5 @@
+{
+  "name": "MineManager",
+  "description": "A complete Minecraft server manager with native PaperMC, Folia, and Velocity support, built-in Hangar plugin marketplace, and playit.gg network tunneling.",
+  "requestFramePermissions": []
+}

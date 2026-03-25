@@ -1,0 +1,73 @@
+# ServerStar Plugin Configuration
+# Compatible with Paper, Folia, Spigot, and Velocity 1.20.0+
+
+server:
+  # Auto-detected but can be overridden
+  type: "auto"  # Options: auto, paper, folia, spigot, velocity
+  minecraft_version_min: "1.20.0"
+  folia_optimization: true  # Enable Folia-specific optimizations
+  velocity_proxy_mode: false  # Set to true if running on Velocity proxy
+
+api:
+  port: 8088
+  cors_origins: ["*"]
+  rate_limit_requests_per_minute: 60
+  enable_graphql: true
+  enable_websocket: true
+
+websocket:
+  port: 8089
+  max_connections: 1000
+  ping_interval_seconds: 30
+  enable_compression: true
+
+database:
+  type: "h2"  # Options: h2, postgresql, mysql
+  url: "jdbc:h2:./plugins/ServerStar/database"
+  # For PostgreSQL: jdbc:postgresql://localhost:5432/serverstar
+  # For MySQL: jdbc:mysql://localhost:3306/serverstar
+  username: "sa"
+  password: ""
+  connection_pool_size: 10
+  connection_timeout_ms: 30000
+  max_lifetime_ms: 1800000
+  validation_query: "SELECT 1"
+
+broadcast:
+  interval_ticks: 200  # How often to send server updates (10 seconds)
+
+activity:
+  per_player_limit: 200  # Max activities stored per player in memory
+  retention_days: 30  # How long to keep activity logs in database
+
+moderation:
+  default_ban_reason: "Violation of server rules"
+  default_kick_reason: "Kicked by administrator"
+  max_warns_before_action: 3
+
+trading:
+  auction_duration_hours: 24
+  max_concurrent_auctions_per_player: 5
+  transaction_fee_percent: 0.05
+
+social:
+  max_friends_per_player: 100
+  max_follows_per_player: 500
+
+security:
+  enable_auth: true
+  jwt_secret: "your-super-secret-jwt-key-change-this-in-production"
+  jwt_expiration_hours: 24
+  bcrypt_rounds: 12
+
+performance:
+  cache_enabled: true
+  redis_url: "redis://localhost:6379"  # Optional, for distributed caching
+  async_workers: 4
+  max_memory_mb: 512
+
+logging:
+  level: "INFO"  # DEBUG, INFO, WARN, ERROR
+  max_file_size_mb: 10
+  max_files: 5
+  structured_json: true

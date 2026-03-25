@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /f/nc-mineman-dev -type f \\\\\\(-name *.bat -o -name *.ps1 -o -name *.sh \\\\\\))",
+      "Bash(ls:*)",
+      "Bash(where python:*)",
+      "Bash(py --version)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -L -o \"F:/nc-mineman-dev/Bin/cloudflared/cloudflared.exe\" \"https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe\")",
+      "Bash(gh release:*)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl:*)",
+      "Bash(unzip -o Redis-x64-3.0.504.zip)",
+      "Bash(unzip -o bun-windows-x64.zip)",
+      "Bash(mv bun-windows-x64/* .)",
+      "Bash(rmdir bun-windows-x64:*)",
+      "Bash(rm bun-windows-x64.zip)",
+      "WebSearch",
+      "Bash(mkdir:*)",
+      "Bash(bun add:*)",
+      "Bash(bun pm:*)",
+      "Bash(bun run:*)",
+      "Bash(bunx tsc:*)",
+      "Bash(node --check lib/redis.ts)",
+      "Bash(npx tsc:*)",
+      "Bash(bun build:*)",
+      "Bash(npm exec:*)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit lib/server-manager.ts)",
+      "Bash(npm run:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(cat /f/nc-mineman-dev/portable/cloudflared/*.json)",
+      "Bash(python -m py_compile /f/nc-mineman-dev/start.py)",
+      "Bash(py -m py_compile /f/nc-mineman-dev/start.py)"
+    ]
+  }
+}
